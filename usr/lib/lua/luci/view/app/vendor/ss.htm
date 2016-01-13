@@ -1,0 +1,860 @@
+<%
+-- @author FlashSoft
+local ss_config = luci.sys.exec("uci show ss-redir | sed 's/ss-redir\\.\\(.*\\)\\.\\(.*\\)=\\(.*\\)/ss_redir[\"\\1\"][\"\\2\"]=\"\\3\";/g' | sed 's/ss-redir\\.\\(.*\\)=.*/ss_redir[\"\\1\"]={};/g'")
+local ss_state = luci.sys.exec('if [ "`ps | grep /usr/bin/vendor/bin/ss-redir | grep -c -v grep`" == "1" ]; then echo -n "start";  else echo -n "stop"; fi;')
+local ss_enable = luci.sys.exec("if [ -L /etc/rc.d/S99ss.sh ]; then echo -n true;else echo -n false;fi")
+%>
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<meta name="format-detection" content="telephone=no" />
+	<title>HiWiFi 路由器</title>
+	<link rel="stylesheet" href="<%=resource%>/web/css/style.css?v=7455" type="text/css"/>
+	<style>
+	/*表格*/
+	table{border-spacing:0;border-collapse:collapse;}
+	.table{width:100%;border:1px solid #ddd;border-radius:5px;}
+	.table th, .table td{border:1px solid #ddd;padding:5px;}
+	.table th{background:#e5e5e5;}
+	.table tr:nth-child(odd){background:#f9f9f9;}
+	.table tr:hover{background:#f5f5f5;}
+	/*输入框*/
+	.form-input{box-sizing:border-box;display:block;width:100%;padding:4px 8px;font-size:14px;line-height:1.42857143;color:#555;background-color:#fff;background-image:none;border:1px solid #ccc;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075);box-shadow:inset 0 1px 1px rgba(0,0,0,.075);-webkit-transition:border-color ease-in-out .15s,-webkit-box-shadow ease-in-out .15s;-o-transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s;transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s}
+	.form-input:focus{border-color:#66afe9;outline:0;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6);box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6);}
+	/*按钮*/
+	.btn{margin:0px 2px 2px 0px;border-radius:4px;}
+	.btn.disabled{background:#ccc;}
+	/*测速*/
+	.speed-table .label{text-align:right;}
+	.speed-table td{text-align:center;}
+	.speed-table .warning{color:#f0ad4e}
+	.speed-table .success{color:#5cb85c;}
+	.speed-table .info{color:#999;}
+	.speed-table .error{color:#d44950;}
+	.speed-table .description{height:20px;line-height:20px;color:#ccc;}
+	/*提示条*/
+	.alert{padding:15px;margin-bottom:20px;border:1px solid transparent;border-radius:4px;}
+	.alert-success {color:#3c763d;background-color:#dff0d8;border-color:#d6e9c6;}
+	.alert hr{height:1px;border:none;background:#3c763d;}
+	/*其他*/
+	.td_left{text-align:right;font-weight:bold;width:70px;}
+	.td_right{}
+	.td_btns{text-align:center;}
+	.gap{margin-top:10px;}
+	.input_height{height:34px;}
+	.copyright{margin:30px 0 10px 0;text-align:center;color:#bbb;}
+	/*服务状态*/
+	.state-label,.state-server{margin-right:10px;}
+	.state-label em{background-repeat:no-repeat;width:10px;height:10px;display:inline-block;margin-right:4px;
+	background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAMAAAC67D+PAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAytpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RDQxRUJENzA5NEVBMTFFNDg4MjI4QjExNDc1MzczNEQiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RDQxRUJENkY5NEVBMTFFNDg4MjI4QjExNDc1MzczNEQiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5kaWQ6OGY5MjhjNWEtZmVjMy00N2Q1LTgyMzEtM2NjNmE1ZDg2MTM3IiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjhmOTI4YzVhLWZlYzMtNDdkNS04MjMxLTNjYzZhNWQ4NjEzNyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pg9zWYgAAAMAUExURQAAAP///w3tUATgRATeQwfiRwjfRg3tTg/sUBDpUBHkThHhTRjvVhjuVhfjUhjhURvwWRzvWSXvXyXsXSnuYSruYTP8bTT8bjn9cjr8ckn/fUv9fk39flb/hVj/hl//iwC/MgC9MQC7MAC7MQC6MAC5MAC4LwC2LgLDNgK+NAPCNgO+NQS4MgS4M1P9gVT9gl3/iWv/kmz/k2//lG//lQC1LYf/pIj/pYv/p5b/rpj/r6H/taP/trD/vrH/v8n/z8n/zt7/3N7/2wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIw1lKYAAABEdFJOU/////////////////////////////////////////////////////////////////////////////////////////8AcdKPEgAAAGlJREFUeNpicAYCU3UQyeDsrMLCzsSsCGIqcYpLSYlxKACZbJJGFhaGEqzODGq8clb2DpayPCoMqoLyNo5O1gYCygzO3DLmdrZm0lxAtZrC+sYmekIaIMO0+UVF+LTA5jo76+iCSIAAAwCmGRF5IT1INQAAAABJRU5ErkJggg==');
+	}
+	.state-label em.gray{filter:grayscale(100%);-webkit-filter:grayscale(100%);}
+	</style>
+	<script type="text/javascript" src="<%=resource%>/web/js/jquery-1.8.1.min.js?v=7455"></script>
+	<script type="text/javascript" src="<%=resource%>/web/js/artDialog/jquery.artDialog.js?skin=blueskin"></script>
+	<script src="<%=resource%>/web/js/artDialog/plugins/iframeTools.source.js?v=7455"></script>
+	<script>
+	// SeryoVPN配置表
+	var ss_redir = [];
+	<%=ss_config%>
+	ss_redir["ssgoabroad"] = ss_redir["ssgoabroad"]? ss_redir["ssgoabroad"]: {};
+
+	// SeryoVPN状态
+	var ss_state = '<%=ss_state%>';
+	// SeryoVPN是否开启为开机启动
+	var ss_enable = <%=ss_enable%>;
+	</script>
+</head>
+<body>
+	<div class="title">
+		<h2>高级设置<i>设置路由器安全 , 及其他高级设置</i></h2>
+	</div>
+	<div class="menu">
+		<% include("admin_web/menu/adv_menu") %>
+	</div>
+	<div class="box setup_box">
+		<div class="memu">
+		    <p class="item-txt"><span class="on-off" style="font-size:14px;" id="switch"><label>开关</label><button type="button" class="off" style="margin-left:10px;">开关</button><span id="loading" style="display:none;margin-left:10px;">处理中...</span></span></p>
+		</div>
+		<div id="container" style="display:none;">
+			<div id="update" class="alert alert-success" style="display:none;"></div>
+			<table class="table">
+				<thead>
+					<tr><th colspan="2">SeryoVPN服务器信息</th></tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td class="td_left">序号</td>
+						<td class="td_right">
+							<select name="ss_server_index" data-input="true" class="form-input input_height"></select>
+						</td>
+					</tr>
+					<tr>
+						<td class="td_left">名称</td>
+						<td class="td_right"><input class="form-input" data-input="true" name="ss_server_des" placeholder="服务器的别名"/></td>
+					</tr>
+					<tr>
+						<td class="td_left">地址</td>
+						<td class="td_right"><input class="form-input" data-input="true" name="ss_server_ip" placeholder="SeryoVPN的服务器地址"/></td>
+					</tr>
+					<tr>
+						<td class="td_left">端口</td>
+						<td class="td_right"><input class="form-input" data-input="true" name="ss_server_port" placeholder="SeryoVPN的连接端口"/></td>
+					</tr
+					<tr>
+						<td class="td_left">密码</td>
+						<td class="td_right"><input class="form-input" data-input="true" name="ss_password" placeholder="SeryoVPN的连接密码" type="password"/></td>
+					</tr>
+					<tr>
+						<td class="td_left">加密方式</td>
+						<td class="td_right">
+							<select name="ss_method" data-input="true" class="form-input input_height">
+								<option value="aes-256-cfb">aes-256-cfb</option>
+								<option value="aes-192-cfb">aes-192-cfb</option>
+			                    <option value="aes-128-cfb">aes-128-cfb</option>
+			                    <option value="table">table</option>
+			                    <option value="rc4">rc4</option>
+			                    <option value="rc4-md5">rc4-md5</option>
+			                    <option value="bf-cfb">bf-cfb</option>
+			                    <option value="camellia-128-cfb">camellia-128-cfb</option>
+			                    <option value="camellia-192-cfb">camellia-192-cfb</option>
+			                    <option value="camellia-256-cfb">camellia-256-cfb</option>
+			                    <option value="cast5-cfb">cast5-cfb</option>
+			                    <option value="des-cfb">des-cfb</option>
+			                    <option value="idea-cfb">idea-cfb</option>
+			                    <option value="rc2-cfb">rc2-cfb</option>
+			                    <option value="seed-cfb">seed-cfb</option>
+			            	    <option value="salsa20">salsa20</option>
+			                    <option value="chacha20">chacha20</option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<td class="td_left">模式</td>
+						<td class="td_right">
+							<select name="ss_mode" data-input="true" class="form-input input_height">
+								<option value="part">智能模式</option>
+	                    		<option value="whole">全局模式</option>
+			    				<option value="game">游戏模式</option>
+	                    		<option value="china">回国模式</option>
+								<option value="exact">GFWList模式</option>
+	                    	</select>
+						</td>
+					</tr>
+					<tr>
+						<td class="td_left">加速DNS</td>
+						<td class="td_right">
+							<select name="dns_server_ip" data-input="true" class="form-input input_height">
+			                    <option value="8.8.4.4">谷歌</option>
+			                    <option value="60.32.112.42">日本</option>
+			                    <option value="168.95.1.1">台湾</option>
+			                    <option value="218.102.23.228">香港</option>
+			                    <option value="168.126.63.1">韩国</option>
+			                    <option value="208.67.222.222">openDns</option>
+					    		<option value="128.199.248.105">新加坡</option>
+					    		<option value="212.50.131.153">芬兰</option>
+									<option value="74.82.42.42">HE.NET</option>
+		            	    </select>
+						</td>
+					</tr>
+					<tr>
+						<td class="td_left">服务状态</td>
+						<td class="td_right">
+							<label class="state-label"><em></em><span></span></label><span class="state-server"></span><a data-type="submit" data-act="stop" href="javascript:;">停止</a>
+						</td>
+					</tr>
+				</tbody>
+				<tbody>
+					<tr>
+						<td class="td_left">服务器管理</td>
+						<td class="td_right">
+							<button class="btn" data-type="submit" data-act="add">添加</button><button class="btn" data-type="submit" data-act="del">删除</button><button class="btn" data-type="submit" data-act="save">保存</button><button class="btn" data-type="submit" data-act="auto">一键启用</button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<table class="table gap">
+				<thead>
+					<tr><th colspan="2">高级设置</th></tr>
+				</thead>
+				<tbody>
+					<tr><td>白名单&nbsp;<a href="ss_ajax?act=system_white_list" target="_blank">系统内置</a></td><td>黑名单</td></tr>
+					<tr><td><textarea class="form-input" data-type="white_list" placeholder=“走SeryoVPN的域名列表” rows="10"></textarea></td><td><textarea class="form-input" data-type="black_list" placeholder=“不走SeryoVPN的域名列表” rows="10"></textarea></td></tr>
+					<tr>
+						<td>
+							<button class="btn" data-type="whitelist_btn">保存白名单</button>
+						</td>
+						<td>
+							<button class="btn" data-type="blacklist_btn">保存黑名单</button>
+						</td>
+					</tr>
+					<tr><td colspan="2"></td></tr>
+					<tr><td>MAC黑名单</td><td>预留</td></tr>
+					<tr><td><textarea class="form-input" data-type="black_mac_list" placeholder=“不走SeryoVPN的MAC列表(格式为00:15:C5:16:09:A3)” rows="10"></textarea></td><td><textarea class="form-input" data-type="xxxx" placeholder=“预留” rows="10"></textarea></td></tr>
+					<tr>
+						<td>
+							<button class="btn" data-type="blackmaclist_btn">保存MAC黑名单</button>
+						</td>
+						<td>
+							<button class="btn" data-type="xxxx_btn">预留</button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<div>
+				<table class="table gap speed-table">
+					<thead>
+						<tr><th colspan="5">服务器测速</th></tr>
+					</thead>
+					<tfoot>
+						<tr>
+							<td colspan="5">
+								<div class="description" data-type="desc"></div>
+								<button class="btn" data-type="bench">全部测试</button>
+							</td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+
+			<div class="copyright">Version: <script>document.write(ss_redir["ssgoabroad"] && ss_redir["ssgoabroad"]["ss_version"] || '未知');</script> Created by: <a href="https://www.seryovpn.com" target="_blank">SeryoVPN</a> Modified by: <a href="https://doc.seryovpn.com" target="_blank">SeryoVPN Support</a></div>
+		</div>
+	</div>
+	<script>
+
+	$('#loading').hide();
+	if(ss_enable) {$('#container').show();}else {$('#container').hide();}
+	$('#switch').children('button').removeClass('off on').addClass(ss_enable? 'on': 'off');
+
+
+	$(function () {
+
+		// 总开关状态
+		$('#switch').on('click', function () {
+			var data = {
+				'act': 'service',
+				'service': ss_enable? 'disable': 'enable'
+			};
+			$('#loading').show();
+			$.ajax({
+		        'url': 'ss_ajax',
+		        'type': 'post',
+		        'data': data,
+		        'dataType': 'json',
+		        'success': function (data) {
+		        	ss_enable = !ss_enable;
+		        	$('#loading').hide();
+		        	if(ss_enable) {
+		        		viewServiceState('start');
+		        		$('#container').show();
+		        	}
+		        	else {
+		        		viewServiceState('stop');
+						$('#container').hide();
+		        	}
+		        	$('#switch').children('button').removeClass('off on').addClass(ss_enable? 'on': 'off');
+		        }
+	     	});
+
+		});
+
+		// 密码显示隐藏
+		$('[type=password]').on('focus', function () {
+			this.type = 'text';
+		}).on('blur', function () {
+			this.type = 'password';
+		});
+		// 选中输入框文字
+		$('input').on('focus', function () {
+			this.select();
+		})
+
+
+
+		// 各种保存
+		$('body').on('click', '[data-type=submit]', function () {
+			var node = $(this);
+			var act = node.attr('data-act');
+			var data = {};
+			var callback = function () {};
+
+			switch(act) {
+				// 添加配置
+				case 'add':
+					var new_index = ss_redir.length;
+
+					// 表单变量
+					data['act'] = act;
+					data['ss_server_index'] = new_index;
+					data['ss_server_des'] = '新建服务器';
+
+					// 本地配置
+					ss_redir[new_index] = data;
+
+					refreshForm(new_index);
+					speedTesting.replaceRow(new_index);
+
+					node.attr('disabled', true).addClass('disabled');
+					callback = function (data) {
+						node.attr('disabled', false).removeClass('disabled');
+					};
+
+				break;
+				// 删除配置
+				case 'del':
+
+					var runing_index = ss_redir["ssgoabroad"]["ss_server_name"];
+					var index = $('[name=ss_server_index]').val();
+					var new_index = $('[name=ss_server_index] option:selected').prev().val();
+
+					if(runing_index == index) {
+						alert('不能删除默认配置');
+						return;
+					}
+					// 表单变量
+					data['act'] = act;
+					data['ss_server_index'] = index
+
+					// 本地配置
+					delete ss_redir[index];
+
+					refreshForm(new_index);
+					speedTesting.removeRow(index);
+
+					node.attr('disabled', true).addClass('disabled');
+					callback = function (data) {
+						node.attr('disabled', false).removeClass('disabled');
+					};
+				break;
+				// 保存或者保存并应用
+				case 'save':
+				case 'auto':
+
+					if($('.form-input[data-input][value!=""]').length != $('.form-input[data-input]').length) {
+						alert('服务器信息不完整');
+						return;
+					}
+
+
+					var index = $('[name=ss_server_index]').val();
+					// 表单变量
+					data['act'] = act;
+					data['ss_server_index'] = index;
+					data['ss_server_des'] = $('[name=ss_server_des]').val();
+					data['ss_server_ip'] = $('[name=ss_server_ip]').val();
+					data['ss_server_port'] = $('[name=ss_server_port]').val();
+					data['ss_password'] = $('[name=ss_password]').val();
+					data['ss_method'] = $('[name=ss_method]').val();
+					data['ss_mode'] = $('[name=ss_mode]').val();
+					data['dns_server_ip'] = $('[name=dns_server_ip]').val();
+
+					// 本地配置
+					ss_redir[index] = data;
+					if(act == 'auto') {
+						ss_redir["ssgoabroad"]["ss_server_name"] = index;
+					}
+					ss_redir["ssgoabroad"]["antixxx_dns_server_ip"] = data['dns_server_ip'];
+					ss_redir["ssgoabroad"]["mode"] = data['ss_mode'];
+
+
+
+					refreshForm(index);
+					speedTesting.replaceRow(index);
+
+					if(act == 'auto') {
+						viewServiceState('progress');
+					}
+					node.attr('disabled', true).addClass('disabled');
+					callback = function (data) {
+						if(act == 'auto') {
+							checkServiceOK();
+							checkServiceOK(index);
+							viewServiceState('start');
+						}
+						node.attr('disabled', false).removeClass('disabled');
+					};
+					break;
+				// 停止服务
+				case 'stop':
+					// 表单变量
+					data['act'] = 'service';
+					data['service'] = 'stop';
+
+					viewServiceState('progress');
+					callback = function (data) {
+						viewServiceState('stop');
+					};
+					break;
+			}
+			$.ajax({
+		        'url': 'ss_ajax',
+		        'type': 'post',
+		        'data': data,
+		        'dataType': 'json',
+		        'success': callback
+	     	});
+		});
+		// 保存DNS域名白名单
+		$.ajax({
+			'url': 'ss_ajax?act=whitelist',
+			'dataType': 'html',
+			'success': function (data) {
+				$('[data-type=white_list]').val(data.replace(/^\s+/g, '').replace(/\s+$/g, ''));
+			}
+		});
+		$.ajax({
+			'url': 'ss_ajax?act=blacklist',
+			'dataType': 'html',
+			'success': function (data) {
+				$('[data-type=black_list]').val(data.replace(/^\s+/g, '').replace(/\s+$/g, ''));
+			}
+		});
+		$.ajax({
+			'url': 'ss_ajax?act=blackmaclist',
+			'dataType': 'html',
+			'success': function (data) {
+				$('[data-type=black_mac_list]').val(data.replace(/^\s+/g, '').replace(/\s+$/g, ''));
+			}
+		});
+		$('body').on('click', '[data-type=whitelist_btn]', function () {
+			var node = $(this);
+			var data = {};
+			data['act'] = 'whitelist_save';
+			data['list'] = $('[data-type=white_list]').val();
+			node.attr('disabled', true).addClass('disabled');
+			$.ajax({
+				'url': 'ss_ajax',
+				'type': 'post',
+		        'data': data,
+				'dataType': 'json',
+				'success': function (data) {
+					node.attr('disabled', false).removeClass('disabled');
+				}
+			});
+		});
+		$('body').on('click', '[data-type=blacklist_btn]', function () {
+			var node = $(this);
+			var data = {};
+			data['act'] = 'blacklist_save';
+			data['list'] = $('[data-type=black_list]').val();
+			node.attr('disabled', true).addClass('disabled');
+			$.ajax({
+				'url': 'ss_ajax',
+				'type': 'post',
+		        'data': data,
+				'dataType': 'json',
+				'success': function (data) {
+					node.attr('disabled', false).removeClass('disabled');
+				}
+			});
+		});
+		$('body').on('click', '[data-type=blackmaclist_btn]', function () {
+			var node = $(this);
+			var data = {};
+			data['act'] = 'blackmaclist_save';
+			data['list'] = $('[data-type=black_mac_list]').val();
+			node.attr('disabled', true).addClass('disabled');
+			$.ajax({
+				'url': 'ss_ajax',
+				'type': 'post',
+		        'data': data,
+				'dataType': 'json',
+				'success': function (data) {
+					node.attr('disabled', false).removeClass('disabled');
+				}
+			});
+		});
+		// 服务器选择
+		$('[name=ss_server_index]').on('change', function() {
+			var index = $(this).val();
+			refreshForm(index);
+		});
+		// 服务器描述
+		$('[name=ss_server_des]').on('keyup blur', function () {
+			var node = $('[name=ss_server_index] option:selected')
+			var currHTML = '';
+			if(node.val() == ss_redir["ssgoabroad"]["ss_server_name"]) {
+				currHTML = ' (默认)';
+			}
+			node.text('[' + node.index() + '] ' + $(this).val() + currHTML);
+		});
+
+		// 处理状态
+		function viewServiceState(state) {
+			var node = $('.state-label');
+			switch(state) {
+				case 'progress':
+					node.children('em').addClass('gray');
+					node.children('span').html('处理中');
+					$('.state-server').hide();
+					$('[data-act=stop]').hide();
+					break;
+				case 'start':
+					node.children('em').removeClass('gray');
+					node.children('span').html('运行中');
+					$('.state-server').show();
+					$('[data-act=stop]').show();
+					break;
+				case 'stop':
+					node.children('em').addClass('gray');
+					node.children('span').html('未启动');
+					$('.state-server').hide();
+					$('[data-act=stop]').hide();
+					break;
+			}
+
+		}
+		// 获取cpu信息
+		function getCpuInfo() {
+			$.ajax({
+				'url': 'ss_ajax?act=cpu',
+				'dataType': 'json',
+				'success': function (data) {
+					$('.state-info').html(data.cpu);
+					setTimeout(getCpuInfo, 1000);
+				}
+			});
+		}
+
+		// 刷新表单值
+		function refreshForm(index) {
+			var config = ss_redir[index];
+			$('[name=ss_server_index]').empty();
+			var count = 0;
+			for(var i = 0; i < ss_redir.length; i ++ ) {
+				if(!ss_redir[i]) {continue;}
+				var currHTML = '';
+				if(i == ss_redir["ssgoabroad"]["ss_server_name"]) {
+					currHTML = ' (默认)';
+				}
+				$('[name=ss_server_index]').append('<option value="' + i + '">[' + i + '] ' + ss_redir[i]['ss_server_des'] + currHTML + '</option>');
+				count++;
+			}
+			if(!config) {return;}
+			// 填写各种值
+			$('[name=ss_server_index]').val(index);
+			$('[name=ss_server_des]').val(config['ss_server_des']);
+			$('[name=ss_server_ip]').val(config['ss_server_ip']);
+			$('[name=ss_server_port]').val(config['ss_server_port']);
+			$('[name=ss_password]').val(config['ss_password']);
+			$('[name=ss_method]').val(config['ss_method']);
+			$('[name=ss_mode]').val(ss_redir["ssgoabroad"]["mode"]);
+			$('[name=dns_server_ip]').val(ss_redir["ssgoabroad"]["antixxx_dns_server_ip"]);
+		}
+
+		// 检查更新
+		function checkUpdate() {
+			$.ajax({
+				'url': 'ss_ajax?act=update',
+				'dataType': 'json',
+				'success': function (data) {
+					var old_version = ss_redir["ssgoabroad"] && ss_redir["ssgoabroad"]["ss_version"] || '未知';
+					var new_version = data && data['version'];
+					if(new_version != old_version) {
+						$('#update').show().html('<em>当前版本: ' + old_version + '</em>&nbsp;&nbsp;<em>新版本: ' + new_version + '</em>&nbsp;&nbsp;<a target="_blank" href="' + data['url'] + '">去更新</a><hr/>' + data['changelog']);
+					}
+				}
+			});
+		}
+		// 检查服务状态
+		function checkServiceOK(index) {
+			if(!index) {
+				$('.state-server').html('<span style="color:#f0ad4e;">测试中</span>');
+			}
+			speedTesting.testSpeed(1, index, function (data) {
+				if(data.info && data.info.split(' ')[3] > 0) {
+					$('.state-server').html('<span style="color:#5cb85c;">连接正常</span>');
+				}else{
+					$('.state-server').html('<span style="color:#f0ad4e;">连接异常</span>');
+				}
+			}, true);
+		}
+
+
+
+		// 表格测试
+		var speedTesting = {
+			'init': function () {
+				$.ajax({
+					'url': 'ss_ajax?act=speed_result',
+					'dataType': 'script',
+					'success': function (data) {
+						speedTesting.initTable();
+					}
+				});
+				$('[data-type=bench]').on('click', speedTesting.benchBind);
+			},
+			// 初始化表格
+			'initTable': function () {
+
+				for(var i = 0; i < ss_redir.length; i ++ ) {
+					speedTesting.replaceRow(i);
+				}
+
+			},
+			// 返回各种带状态的TD
+			'getTD': function (val, type) {
+
+				var html = '<td>&nbsp;-&nbsp;</td>';
+				if(val != null) {
+					switch(type){
+						// 时间
+						case 0:
+							if(val >= 10) {
+								html = '<td class="error">' + val + 's</td>';
+							}
+							else if(val < 3) {
+								html = '<td class="success">' + val + 's</td>';
+							}
+							else {
+								html = '<td class="warning">' + val + 's</td>';
+							}
+							break;
+						// 速度
+						case 1:
+							if(val > 100) {
+								html = '<td class="success">' + val + 'KB/s</td>';
+							}else if(val == 0) {
+								html = '<td class="error">' + val + 'KB/s</td>';
+							}else {
+								html = '<td class="warning">' + val + 'KB/s</td>';
+							}
+							break;
+						// 测试中
+						case 2:
+							html = '<td>' + val + '</td>';
+							break;
+						// 等待
+						case 3:
+							html = '<td>' + val + '</td>';
+							break;
+					}
+
+				}
+				return html;
+			},
+			// 返回行HTML
+			'getRow': function (configs) {
+
+				configs = configs || {};
+				var index = configs.index || '';
+				var des = configs.des || '';
+				var ip = configs.ip || '';
+				var data = configs.data || [{},{},{}];
+				var config_index = configs.config_index || '';
+
+				var html = '';
+				html = '<tbody data-index="' + index + '" data-config-index="' + config_index + '">' +
+							'<tr><td>' + index + '</td><td colspan="4">服务器: ' + des + ' (' + ip + ')</td></tr>' +
+							'<tr><td rowspan="3">&nbsp;</td><td class="label">测试点</td><td>国内</td><td>YouTube</td><td>Facebook</td></tr>' +
+							'<tr data-index="duration"><td class="label">测试时长</td>' + speedTesting.getTD(data[0].duration, 0) + speedTesting.getTD(data[1].duration, 0) + speedTesting.getTD(data[2].duration, 0) + '</tr>' +
+							'<tr data-index="average"><td class="label">速度</td>' + speedTesting.getTD(data[0].average, 1) + speedTesting.getTD(data[1].average, 1) + speedTesting.getTD(data[2].average, 1) + '</tr>' +
+						'</tbody>';
+
+
+				return html;
+			},
+			'removeRow': function (index) {
+				var row_node = $('.speed-table').children('[data-index=' + index + ']');
+				row_node.remove();
+			},
+			// 插入或者更新行
+			'replaceRow': function (index) {
+				var tbody_html = '';
+
+				var config = ss_redir[index];
+				if(!config) {return;}
+
+
+				var config_index = (config["ss_server_ip"] && config["ss_server_ip"].replace(/\./g, '_').replace(/^https?\:\/\//g, ''));
+
+				var result = window.speed_result && speed_result[config_index] || [];
+
+				var arr, data;
+
+				if(result) {
+					data = [];
+					arr = result[0] && result[0].info.split(' ') || [];
+					data.push({'duration': arr[1], 'average': arr[3]});
+					arr = result[1] && result[1].info.split(' ') || [];
+					data.push({'duration': arr[1], 'average': arr[3]});
+					arr = result[2] && result[2].info.split(' ') || [];
+					data.push({'duration': arr[1], 'average': arr[3]});
+				}
+				tbody_html += speedTesting.getRow({
+					'index': index,
+					'des': config["ss_server_des"],
+					'ip': config["ss_server_ip"],
+					'data': data,
+					'config_index': config_index
+				});
+
+				var row_node = $('.speed-table').children('[data-index=' + index + ']')
+				if(row_node.length != 0) {
+					row_node.replaceWith($(tbody_html));
+				}
+				else{
+					$('.speed-table').append($(tbody_html));
+				}
+
+			},
+			// 返回测试下载的信息
+			'getTestInfo': [
+				{
+					'name': 'China',
+					'url': 'http://www.baidu.com'
+				},
+				{
+					'name': 'youtube',
+					'url': 'https://www.youtube.com/'
+				},
+				{
+					'name': 'SeryoVPN',
+					'url': 'https://www.seryovpn.com'
+				}
+			],
+			'testSpeed': function (col, index, next, final) {
+				// console.log('testSpeed', index, col);
+				if(!final) {
+					$('.speed-table .description').html('测试服务' + index + '的第' + col +'列');
+				}
+
+
+
+				var cb = function () {
+					col ++;
+					speedTesting.testSpeed(col, index, next);
+				};
+				if(col < speedTesting.getTestInfo.length) {
+
+
+					if(!final) {
+						var durationNode = $('.speed-table [data-index=' + index + '] [data-index=duration] td:eq(' + (col + 1) + ')');
+						var averageNode = $('.speed-table [data-index=' + index + '] [data-index=average] td:eq(' + (col + 1) + ')');
+						durationNode.replaceWith(speedTesting.getTD('测试中', 2));
+						averageNode.replaceWith(speedTesting.getTD('测试中', 2));
+					}
+
+					var config = ss_redir[index];
+					if(!config) {return;}
+					var config_index = (config["ss_server_ip"] && config["ss_server_ip"].replace(/\./g, '_').replace(/^https?\:\/\//g, ''));
+
+					$.ajax({
+						'url': 'ss_ajax?act=speed_testing',
+						'data': {'col': col, 'url': speedTesting.getTestInfo[col]['url'], 'index': config_index, 'name': speedTesting.getTestInfo[col]['name']},
+						'dataType': 'json',
+						'success': function (data) {
+
+							if(!final) {
+								$('.speed-table .description').html('测试服务' + index + '完成');
+								var arr = data.info.split(' ');
+
+								var durationNode = $('.speed-table [data-index=' + index + '] [data-index=duration] td:eq(' + (col + 1) + ')');
+								var averageNode = $('.speed-table [data-index=' + index + '] [data-index=average] td:eq(' + (col + 1) + ')');
+
+								durationNode.replaceWith(speedTesting.getTD(arr[1], 0));
+								averageNode.replaceWith(speedTesting.getTD(arr[3], 1));
+								cb();
+							}
+							else {
+								next(data);
+								return;
+							}
+
+						}
+					});
+				}else{
+					next();
+				}
+			},
+			// 切换服务
+			'switchService': function (index, next, final) {
+				// console.log('swtichService', index);
+				$('.speed-table .description').html('切换至服务' + index);
+				if(!final) {// 进行中才有文字提示
+					$('.speed-table [data-index=' + index + '] [data-index] td[class!=label]').replaceWith(speedTesting.getTD('等待', 3));
+				}
+				else{
+					$('.speed-table .description').html('切换回原服务器');
+				}
+				$.ajax({
+					// 'url': 'ss_ajax?act=cpu',
+					'url': 'ss_ajax?act=switch_service',
+					'data': {'index': index},
+					'dataType': 'html',
+					'success': function (data) {
+						$('.speed-table .description').html('切换服务成功');
+						if(final){
+							next();
+							return;
+						}
+						speedTesting.testSpeed(0, index, next);
+					}
+				});
+			},
+			'benchBind': function () {
+
+				var curr_index = ss_redir["ssgoabroad"]["ss_server_name"];
+				$('.speed-table .description').html('开始测试');
+				$('[data-type=bench]').attr('disabled', true).addClass('disabled');
+				function switchTo(index) {
+					// console.log('switchTo', index);
+					var cb = function () {
+						index ++;
+						switchTo(index);
+					};
+					if(index > ss_redir.length) {return;}
+					if(index < ss_redir.length) {
+						if(!ss_redir[index]) {
+							// console.log('配置不存在,跳过', index);
+							$('.speed-table .description').html('配置不存在,跳过');
+							cb();
+							return;
+						}
+						if(index == curr_index) {
+							// console.log('已启动配置,跳过');
+							$('.speed-table .description').html('已启动配置,跳过');
+							$('.speed-table [data-index=' + index + '] [data-index] td[class!=label]').replaceWith(speedTesting.getTD('等待', 3));
+							speedTesting.testSpeed(0, index, cb);
+							return;
+						}
+						speedTesting.switchService(index, cb);
+					}
+					else{
+						// console.log('switchTo', 'end', index, curr_index);
+						$('.speed-table .description').html('切换回原服务器');
+						if(index - 1 == curr_index) {// 最后的配置跟正在运行配置相同
+							$('.speed-table .description').html('');
+							$('[data-type=bench]').attr('disabled', false).removeClass('disabled');
+							return;
+						}
+						speedTesting.switchService(curr_index, function () {
+							// console.log('还原完毕');
+							$('.speed-table .description').html('');
+							$('[data-type=bench]').attr('disabled', false).removeClass('disabled');
+						}, true);
+					}
+				}
+				switchTo(0);
+			}
+
+		};
+
+
+
+		window.speedTesting = speedTesting;
+		speedTesting.init();
+
+
+		viewServiceState(ss_state);
+		checkServiceOK();
+		checkServiceOK(ss_redir["ssgoabroad"]["ss_server_name"]);
+		refreshForm(ss_redir["ssgoabroad"]["ss_server_name"]);
+		checkUpdate();
+	});
+	</script>
+</body>
+</html>
+

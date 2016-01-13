@@ -1,0 +1,187 @@
+<%
+-- @author FlashSoft
+local request_uri = luci.http.getenv('REQUEST_URI')
+local act = luci.http.formvalue('act')
+local json = ''
+local startTime = os.clock()
+local speed_path = '/tmp/speed_result'
+local white_list = '/usr/bin/vendor/config/white_domain_list.conf'
+local black_list = '/usr/bin/vendor/config/black_domain_list.conf'
+local black_mac_list = '/usr/bin/vendor/config/black_mac_list.conf'
+local ss_path = '/usr/bin/vendor/bin/ss-redir';
+local ss_sell_path = '/etc/init.d/ss.sh'
+local ss_config_path = '/etc/config/ss-redir'
+
+local ss_server_index = luci.http.formvalue('ss_server_index')
+local ss_server_des = luci.http.formvalue('ss_server_des')
+local ss_server_ip = luci.http.formvalue('ss_server_ip')
+local ss_server_port = luci.http.formvalue('ss_server_port')
+local ss_password = luci.http.formvalue('ss_password')
+local ss_method = luci.http.formvalue('ss_method')
+local ss_mode = luci.http.formvalue('ss_mode')
+local dns_server_ip = luci.http.formvalue('dns_server_ip')
+
+-- 获取服务器配置部分
+-- cat ss | sed '1,'$[`cat ss | sed -n -e '/config/=' | sed -n '2p'` - 1]'d'
+-- sed '1,'$[$(sed -n -e '/config/=' ss | sed -n '2p') - 1]'d' ss
+-- sed '1,'$[`sed -n -e '/config/=' ss | sed -n '2p'` - 1]'d' ss
+%>
+<%
+
+
+function cpu()
+	return luci.sys.exec('top -n 1 | grep '..ss_path..' | grep -v grep | awk \'\{print $7\}\' | tr -d \'\\n\'')
+end
+
+action = {
+	-- 添加服务
+	['add'] = function()
+    	luci.sys.exec('uci set ss-redir.'..ss_server_index..'=interface;')
+    	luci.sys.exec('uci set ss-redir.'..ss_server_index..'.ss_server_des='..ss_server_des..';')
+    	luci.sys.exec('uci commit;')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s"}'
+	end,
+	-- 删除服务
+	['del'] = function()
+		luci.sys.exec('uci del ss-redir.'..ss_server_index..';uci commit;')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s"}'
+	end,
+	-- 保存服务
+	['save'] = function()
+		luci.sys.exec('touch '..ss_config_path..';')
+		luci.sys.exec('uci set ss-redir.'..ss_server_index..'=interface;')
+		luci.sys.exec('uci set ss-redir.'..ss_server_index..'.ss_server_des='..ss_server_des..';')
+		luci.sys.exec('uci set ss-redir.'..ss_server_index..'.ss_server_ip='..ss_server_ip..';')
+		luci.sys.exec('uci set ss-redir.'..ss_server_index..'.ss_server_port='..ss_server_port..';')
+		luci.sys.exec("uci set ss-redir."..ss_server_index..".ss_password='"..ss_password.."';")
+		luci.sys.exec('uci set ss-redir.'..ss_server_index..'.ss_method='..ss_method..';')
+
+		luci.sys.exec('uci commit;')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s"}'
+	end,
+	-- 保存并启动服务
+
+	['auto'] = function()
+		action['save']()
+		luci.sys.exec('uci set ss-redir.ssgoabroad=interface;')
+		luci.sys.exec('uci set ss-redir.ssgoabroad.ss_local_port=65500;')
+		luci.sys.exec('uci set ss-redir.ssgoabroad.mode='..ss_mode..';')
+		luci.sys.exec('uci set ss-redir.ssgoabroad.antixxx_dns_server_ip='..dns_server_ip..';')
+		luci.sys.exec('uci set ss-redir.ssgoabroad.ss_server_name='..ss_server_index..';')
+		luci.sys.exec('uci commit;')
+		luci.sys.exec(ss_sell_path..' restart')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	-- 启动服务、停止服务器、重启服务
+	['service'] = function()
+		service = luci.http.formvalue('service')
+
+		luci.sys.exec(ss_sell_path..' '..service)
+		-- 如果禁用则同时停止服务
+		if service == 'disable' then
+			luci.sys.exec(ss_sell_path..' stop')
+		end
+		-- 如果是启用则同时启动服务
+		if service == 'enable' then
+			luci.sys.exec(ss_sell_path..' restart')
+		end
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	-- 切换服务
+	['switch_service'] = function()
+		index = luci.http.formvalue('index')
+		-- luci.sys.exec(ss_sell_path..' stop')
+		luci.sys.exec('uci set ss-redir.ssgoabroad.ss_server_name='..index..';')
+		luci.sys.exec('uci commit;')
+		luci.sys.exec(ss_sell_path..' restart')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	-- 读取系统白名单
+	['system_white_list'] = function()
+		json = luci.sys.exec('cat /usr/bin/vendor/config/gfw_list.conf')
+		json = '<textarea style="width:100%;height:100%;">'..json..'</textarea'
+	end,
+	-- 读取白名单
+	['whitelist'] = function()
+		json = luci.sys.exec('cat '..white_list)
+	end,
+	-- DNS解析Domain保存
+	['whitelist_save'] = function()
+		list = luci.http.formvalue('list')
+	    local temp = io.output()
+	    io.output(white_list)
+	    io.write(list)
+	    io.output():close()
+	    io.output(temp)
+	    luci.sys.exec('/usr/bin/vendor/bin/dnsmask.sh restart')
+	    json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	-- 读取黑名单
+	['blacklist'] = function()
+		json = luci.sys.exec('cat '..black_list)
+	end,
+	-- DNS解析Domain保存
+	['blacklist_save'] = function()
+		list = luci.http.formvalue('list')
+	    local temp = io.output()
+	    io.output(black_list)
+	    io.write(list)
+	    io.output():close()
+	    io.output(temp)
+	    luci.sys.exec('/usr/bin/vendor/bin/dnsmask.sh restart')
+	    json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	
+		-- 读取mac黑名单
+	['blackmaclist'] = function()
+		json = luci.sys.exec('cat '..black_mac_list)
+	end,
+	-- DNS解析Domain保存
+	['blackmaclist_save'] = function()
+		list = luci.http.formvalue('list')
+	    local temp = io.output()
+	    io.output(black_mac_list)
+	    io.write(list)
+	    io.output():close()
+	    io.output(temp)
+	    luci.sys.exec('/usr/bin/vendor/bin/dnsmask.sh restart')
+	    json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	-- CPU信息
+	['cpu'] = function()
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "cpu": "'..cpu()..'"}'
+	end,
+	['speed_clean'] = function()
+		luci.sys.exec('rm -rf '..speed_path..';');
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s"}'
+	end,
+	['speed_result'] = function()
+		json = luci.sys.exec('cat '..speed_path)
+	end,
+	['speed_testing'] = function()
+		url = luci.http.formvalue('url')
+		col = luci.http.formvalue('col')
+		index = luci.http.formvalue('index')
+		name = luci.http.formvalue('name')
+
+		local info = luci.sys.exec('curl -s -k -m 10 -o /dev/null -w \'%{http_code} %{time_total} %{size_download} %{speed_download}\' '..url..' | awk \'{printf "%s %.2f %.2f %.2f", $1,$2,$3/1024,$4/1024}\'')
+		luci.sys.exec('if [ ! -f '..speed_path..' ]; then echo "var speed_result={};" > '..speed_path..';fi');
+		luci.sys.exec('echo "speed_result[\''..index..'\']||(speed_result[\''..index..'\']={});" >> '..speed_path..';')
+		luci.sys.exec('echo "speed_result[\''..index..'\'][\''..col..'\']={};" >> '..speed_path..';')
+		luci.sys.exec('echo "speed_result[\''..index..'\'][\''..col..'\'][\'info\']=\''..info..'\';" >> '..speed_path..';')
+		luci.sys.exec('echo "speed_result[\''..index..'\'][\''..col..'\'][\'name\']=\''..name..'\';" >> '..speed_path..';')
+		json = '{"state": 1, "exec_time": "'..(os.clock() - startTime)..'s", "info": "'..info..'", "url": "'..url..'", "name": "'..name..'"}'
+	end,
+	-- 更新信息
+	['update'] = function()
+		local update = luci.sys.exec('curl http://3liuhuo.tk/hiwifi/Donation_SS_version')
+		json = update
+	end
+}
+if action[act] then
+	action[act]()
+else
+	json = '{"state": 0, "msg": "不支持的命令"}'
+end
+print(json)
+%>

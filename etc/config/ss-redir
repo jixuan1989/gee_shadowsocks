@@ -1,0 +1,16 @@
+
+config interface 'ssgoabroad'
+	option ss_local_port '65500'
+	option antixxx_dns_server_ip '8.8.8.8'
+	option config_file_version '3.0.0'
+	option ss_version '3.0.0'
+	option mode 'part'
+	option ss_server_name '11'
+
+config interface '11'
+	option ss_server_des 'SeryoVPN'
+	option ss_server_ip 'www.seryovpn.com'
+	option ss_server_port '443'
+	option ss_password 'SeryoVPN'
+	option ss_method 'aes-256-cfb'
+

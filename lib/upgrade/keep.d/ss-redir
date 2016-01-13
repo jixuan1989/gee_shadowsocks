@@ -1,0 +1,16 @@
+/etc/config/ss-redir
+/etc/init.d/ss.sh
+/etc/init.d/pdnsd
+/lib/upgrade/keep.d/ss-redir
+/usr/bin/vendor/bin/dnsmask.sh
+/usr/bin/vendor/bin/ss-redir
+/usr/bin/vendor/bin/dnsmask
+/usr/bin/vendor/config/black_domain_list.conf
+/usr/bin/vendor/config/white_domain_list.conf
+/usr/bin/vendor/config/gfw_list.conf
+/usr/bin/vendor/config/black_mac_list.conf
+/usr/lib/lua/luci/view/app/vendor/ss.htm
+/usr/lib/lua/luci/view/app/vendor/ss_ajax.htm
+/usr/lib/lua/luci/view/admin_web/menu/adv_menu.htm
+/usr/lib/lua/luci/controller/app/vendor.lua
+
